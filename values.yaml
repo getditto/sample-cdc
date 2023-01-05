@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: quay.io
+  pullPolicy: IfNotPresent
+  tag: ""
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
