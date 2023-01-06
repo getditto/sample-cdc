@@ -1,5 +1,6 @@
 import { Kafka, CompressionTypes, CompressionCodecs, logLevel } from 'kafkajs';
 import * as fs from 'fs';
+import { MongoClient } from 'mongodb';
 import LZ4Codec from 'kafkajs-lz4';
 
 CompressionCodecs[CompressionTypes.LZ4] = new LZ4Codec().codec;
@@ -20,9 +21,14 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: topic });
 
+const yourConnectionURI = process.env.MONGO_CONNECTION_URI || '';
+
 const run = async () => {
   await consumer.connect();
   await consumer.subscribe({ topic: topic, fromBeginning: true });
+  const client = new MongoClient(yourConnectionURI);
+
+  await client.connect();
 
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
