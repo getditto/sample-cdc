@@ -1,12 +1,14 @@
 import { Kafka, CompressionTypes, CompressionCodecs, logLevel } from 'kafkajs';
 import * as fs from 'fs';
-import { MongoClient } from 'mongodb';
+import { Db, MongoClient } from 'mongodb';
 import LZ4Codec from 'kafkajs-lz4';
 
 CompressionCodecs[CompressionTypes.LZ4] = new LZ4Codec().codec;
 
 const topic = process.env.TOPIC || '';
 const kafkaHost =  process.env.CLOUD_ENDPOINT || '';
+const dbName = process.env.DATABASE_NAME || '';
+const yourConnectionURI = process.env.MONGO_CONNECTION_URI || '';
 
 const kafka = new Kafka({
   clientId: 'my-consumer',
@@ -21,7 +23,34 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: topic });
 
-const yourConnectionURI = process.env.MONGO_CONNECTION_URI || '';
+interface DittoTransaction {
+  type: 'requeryRequired' | 'documentChanged'
+  collection: string,
+  txnId: string,
+  change: DittoInsert | DittoUpdate | DittoRemove
+}
+
+interface DittoInsert {
+  method: 'upsert',
+  oldValue: null,
+  newValue: Document
+}
+
+interface DittoUpdate {
+  method: 'upsert',
+  oldValue: Document,
+  newValue: Document
+}
+
+interface DittoRemove {
+  method: 'remove',
+  value: Document
+}
+
+interface Document {
+  _id: any, // _id is a string in Ditto, but in Mongo it's typed as ObjectId so we leave it any here
+  [key: string]: any;
+}
 
 const run = async () => {
   await consumer.connect();
@@ -30,11 +59,74 @@ const run = async () => {
 
   await client.connect();
 
+  const database = client.db(dbName);
+
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
       console.log(`Received message from topic ${topic} and partition ${partition}: ${message.value}`);
-    },
-  });
-};
+
+      let change = message.value
+      if (!change) {
+        console.error("[ERROR] Change is null, not inserting into mongo: ", message)
+        return
+      }
+
+      try {
+        const transaction = JSON.parse(message.value!.toString())
+        console.log('Got transaction', transaction)
+        parseTransaction(database, transaction).then(() => {
+
+        }).catch(err => {
+          console.error('[ERROR] Got error when parsing transaction', err)
+        })
+        } catch (err) {
+          console.error("[ERROR]: Failed to parse change", change)
+        }
+      }
+    });
+}
 
 run().catch(console.error);
+
+async function parseTransaction (database: Db, transaction: DittoTransaction) {
+  const collectionName = transaction.collection
+  const collection = database.collection(collectionName);
+
+
+  switch (transaction.type) {
+    case 'requeryRequired':
+      console.log('got requeryRequired')
+      return;
+    case 'documentChanged':
+      switch (transaction.change.method) {
+        case 'upsert':
+          if (transaction.change.oldValue == null) {
+            let change: DittoInsert = transaction.change
+            const result = await collection.insertOne(change.newValue);
+            console.log(
+              `A document was inserted with the _id: ${result.insertedId}`,
+            );
+          } else {
+            let change: DittoUpdate = transaction.change
+            const _id = change.oldValue._id
+            const filter = { _id };
+            const result = await collection.replaceOne(filter, change.newValue, {upsert: true});
+            console.log(
+              `${result.matchedCount} document(s) matched the filter, updated ${result.modifiedCount} document(s)`,
+            );}
+          break;
+        case 'remove':
+          let change: DittoRemove = transaction.change
+          const _id = transaction.change.value._id
+          const filter = { _id };
+          const result = await collection.deleteOne(filter)
+          console.log(
+            `${result.deletedCount} document(s) matched the filter`,
+          );
+          break;
+      }
+    default: 
+      console.log('nothing matched', transaction)
+      break;
+  }
+}
