@@ -1,0 +1,5 @@
+*.crt
+*.p12
+*.key
+index.js
+*.pem
