@@ -1,4 +1,4 @@
-# Ditto Kafka sink example
+# Ditto CDC example
 
 Keep a Ditto Big Peer application in sync with an external database.
 
