@@ -17,9 +17,10 @@ This is sample code that shows you how to build a small server-side application 
 * An instance of MongoDB.
 * Basic understanding of Node.js
 * Local installation of [Node 16](https://nodejs.org/en/) (*note: KafkaJS does not work with Node 18 today).
-* A Ditto application syncing with the Big Peer on the [Ditto Portal](https://portal.ditto.live/)
+* A Ditto application syncing with the Big Peer on the [Ditto Portal](https://portal.ditto.live/) that is on a dedicated cluster.
 
 #### Usage
 
-See the [cdc-bridge](cdc-bridge) directory for example code to connect the Node.js instance to the Ditto Big peer as a Kafka sink.
+1. [Follow the tutorial to enable CDC on your Ditto app](https://docs.ditto.live/ios/common/guides/kafka/intro)
+2. See the [nodejs-mongo](nodejs-mongo) directory for example code to connect the Node.js instance to the Ditto Big peer as a Kafka sink to MongoDB.
 
