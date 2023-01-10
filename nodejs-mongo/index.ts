@@ -1,12 +1,14 @@
 import { Kafka, CompressionTypes, CompressionCodecs, logLevel } from 'kafkajs';
 import * as fs from 'fs';
 import { Db, MongoClient } from 'mongodb';
+import axios from 'axios';
 import LZ4Codec from 'kafkajs-lz4';
 
 CompressionCodecs[CompressionTypes.LZ4] = new LZ4Codec().codec;
 
 const topic = process.env.TOPIC || '';
-const kafkaHost =  process.env.CLOUD_ENDPOINT || '';
+const kafkaHost =  process.env.CLOUD_ENDPOINT || ''
+const httpEndpoint =  process.env.HTTP_ENDPOINT || '';;
 const dbName = process.env.DATABASE_NAME || '';
 const yourConnectionURI = process.env.MONGO_CONNECTION_URI || '';
 
@@ -88,14 +90,34 @@ const run = async () => {
 
 run().catch(console.error);
 
+function onRequeryRequired (transaction: DittoTransaction) {
+  const HTTP_ENDPOINT = httpEndpoint + '/api/v3/store/find'
+  axios({
+    method: 'post',
+    url: HTTP_ENDPOINT,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-DITTO-TRANSACTION-ID': transaction.txnId
+    }, 
+    data: {
+      "collection": transaction.collection,
+      "query": "true",
+      "limit": 1
+    }
+  }).then(function (response) {
+    console.log('Request complete', response.data)
+  }).catch(err => {
+    console.log()
+  });
+}
+
 async function parseTransaction (database: Db, transaction: DittoTransaction) {
   const collectionName = transaction.collection
   const collection = database.collection(collectionName);
 
-
   switch (transaction.type) {
     case 'requeryRequired':
-      console.log('got requeryRequired')
+      onRequeryRequired(transaction)
       return;
     case 'documentChanged':
       switch (transaction.change.method) {
