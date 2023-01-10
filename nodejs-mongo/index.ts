@@ -97,7 +97,7 @@ function onRequeryRequired (transaction: DittoTransaction) {
     url: HTTP_ENDPOINT,
     headers: {
       'Content-Type': 'application/json',
-      'X-DITTO-TRANSACTION-ID': transaction.txnId
+      'X-DITTO-TXN-ID': transaction.txnId
     }, 
     data: {
       "collection": transaction.collection,
