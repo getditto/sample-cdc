@@ -25,11 +25,30 @@ const kafka = new Kafka({
 
 const consumer = kafka.consumer({ groupId: topic });
 
-interface DittoTransaction {
+interface DittoEvent {
   type: 'requeryRequired' | 'documentChanged'
-  collection: string,
   txnId: string,
-  change: DittoInsert | DittoUpdate | DittoRemove
+  version: number,
+  isBase64Encoded: boolean,
+}
+
+interface DittoTransaction extends DittoEvent {
+  change: DittoInsert | DittoUpdate | DittoRemove,
+  collection: string,
+  type: 'documentChanged'
+}
+
+interface RequeryRequiredDocument {
+  appId: string,
+  collectionName: string,
+  documentId: string
+}
+
+interface DittoRequeryRequired extends DittoEvent {
+  txnId: string,
+  version: number,
+  type: 'requeryRequired'
+  documents: RequeryRequiredDocument[],
 }
 
 interface DittoInsert {
@@ -47,6 +66,11 @@ interface DittoUpdate {
 interface DittoRemove {
   method: 'remove',
   value: Document
+}
+
+interface DittoHTTPDocument {
+  id: string,
+  fields: any
 }
 
 interface Document {
@@ -90,36 +114,51 @@ const run = async () => {
 
 run().catch(console.error);
 
-function onRequeryRequired (transaction: DittoTransaction) {
+function onRequeryRequired (database: Db, transaction: DittoRequeryRequired) {
   const HTTP_ENDPOINT = httpEndpoint + '/api/v3/store/find'
-  axios({
-    method: 'post',
-    url: HTTP_ENDPOINT,
-    headers: {
-      'Content-Type': 'application/json',
-      'X-DITTO-TXN-ID': transaction.txnId
-    }, 
-    data: {
-      "collection": transaction.collection,
-      "query": "true",
-      "limit": 1
+  for (const requeryDoc of transaction.documents) {
+    const req = {
+      method: 'post',
+      url: HTTP_ENDPOINT,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-DITTO-TXN-ID': transaction.txnId
+      }, 
+      data: {
+        "collection": transaction,
+        "query": "true",
+        "limit": 1
+      }
     }
-  }).then(function (response) {
-    console.log('Request complete', response.data)
-  }).catch(err => {
-    console.log()
-  });
+    
+    axios(req).then(function (response) {
+      if (response.data.message) {
+        // ERROR
+        console.error(`[ERROR]: HTTP find request ${req} returned error with message: ${response.data.message}`)
+      } else {
+        for (const doc of response.data.documents) {
+          const mongodbCollection = database.collection(requeryDoc.collectionName);
+          let missingDocument = doc as DittoHTTPDocument 
+          mongodbCollection.replaceOne({_id: missingDocument.id}, missingDocument)
+        }
+      }
+    }).catch(err => {
+      console.error(`[ERROR]: HTTP find request ${req}`)
+      console.error(err)
+    });
+
+  }
 }
 
-async function parseTransaction (database: Db, transaction: DittoTransaction) {
-  const collectionName = transaction.collection
-  const collection = database.collection(collectionName);
+async function parseTransaction (database: Db, event: DittoEvent) {
 
-  switch (transaction.type) {
+  switch (event.type) {
     case 'requeryRequired':
-      onRequeryRequired(transaction)
+      onRequeryRequired(database, event as DittoRequeryRequired)
       return;
     case 'documentChanged':
+      const transaction = event as DittoTransaction
+      const collection = database.collection(transaction.collection);
       switch (transaction.change.method) {
         case 'upsert':
           if (transaction.change.oldValue == null) {
@@ -148,7 +187,7 @@ async function parseTransaction (database: Db, transaction: DittoTransaction) {
           break;
       }
     default: 
-      console.log('nothing matched', transaction)
+      throw new Error('[ERROR] Event did not match requeryRequired or documentChanged ' + event)
       break;
   }
 }
