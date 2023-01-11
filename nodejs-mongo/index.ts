@@ -155,7 +155,7 @@ async function parseTransaction (database: Db, event: DittoEvent) {
   switch (event.type) {
     case 'requeryRequired':
       onRequeryRequired(database, event as DittoRequeryRequired)
-      return;
+      break;
     case 'documentChanged':
       const transaction = event as DittoTransaction
       const collection = database.collection(transaction.collection);
@@ -186,6 +186,7 @@ async function parseTransaction (database: Db, event: DittoEvent) {
           );
           break;
       }
+      break;
     default: 
       throw new Error('[ERROR] Event did not match requeryRequired or documentChanged ' + event)
       break;
