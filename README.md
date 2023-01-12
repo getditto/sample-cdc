@@ -1,6 +1,6 @@
 # Ditto CDC example
 
-Keep a Ditto Big Peer application in sync with an external database.
+Real-time sync changes from a Ditto Big Peer application to external database.
 
 ## What is this used for?
 
