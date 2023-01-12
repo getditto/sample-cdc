@@ -18,6 +18,7 @@ npm i
 
 * `TOPIC`: The Kafka Topic
 * `CLOUD_ENDPOINT`: The Kafka endpoint
+* `HTTP_ENDPOINT`: The Ditto HTTP endpoint
 * `DATABASE_NAME`: The MongoDB database name
 * `MONGO_CONNECTION_URI`: The MongoDB connection URI
 
