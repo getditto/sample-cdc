@@ -7,5 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "kafkajs": "^2.2.4",
+    "kafkajs-lz4": "^2.0.0-beta.0"
+  }
 }
